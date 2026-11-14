@@ -1,4 +1,4 @@
-# CMR register — v1.1.0
+# CMR register — v1.1.1
 
 A small web app for custom milling of rice (CMR) in Madhya Pradesh. The pilot mill is **Shri Krishna Rice & Poha Industries, Ujjain**. It keeps the paddy challan, the CMR deposit order, the acceptance note, and the kaanta (weighbridge) slip on one lot, with bag counts and an owner-only money book.
 
@@ -25,14 +25,7 @@ The second command uses the Development settings, listens on http://localhost:50
 
 ### Demo logins
 
-These exist only after demo seed. They are not real people.
-
-| Who | Username | Mobile | PIN |
-|---|---|---|---|
-| Owner | `owner` | `9800000001` | `246810` |
-| Staff (munshi) | `staff` | `9800000002` | `1357` |
-
-Change both PINs in Settings before any real paddy is entered. Set `SEED_DEMO=false` after the first boot so startup does not try to seed again (it will not duplicate a mill that is already there).
+Demo seed creates an owner user named `owner` and a staff user named `staff`. The PINs are not listed here. While `SEED_DEMO=true`, the login screen shows them. Operators can also read them in `HANDOFF.md`. Change both PINs in Settings before any real paddy is entered, then set `SEED_DEMO=false`. Startup does not create a second mill if one is already there, and it does not alter the database role on later boots.
 
 ## What was built
 

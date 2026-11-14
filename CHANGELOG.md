@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.1.1 — 2026-11-14
+
+- Second boot on Neon no longer runs `ALTER ROLE cmr_app`. Neon’s `neondb_owner` is not a superuser and that statement returns SQLSTATE 42501, which stopped the process. If the role already exists, startup logs a warning and continues. Creating a missing role still works for a non-superuser owner.
+
 ## 1.1.0 — 2026-11-14
 
 First pilot build of the CMR register for Shri Krishna Rice & Poha Industries, Ujjain.

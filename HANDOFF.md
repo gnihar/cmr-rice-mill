@@ -1,4 +1,4 @@
-# Handoff — CMR register v1.1.0
+# Handoff — CMR register v1.1.1
 
 This file is for the next person (or coding agent) who continues the app. Read it with `README.md` and `CHANGELOG.md`. The product decisions below came from Nihar and override the two research briefs that started the work.
 
@@ -57,7 +57,9 @@ dotnet test tests/Cmr.E2E/Cmr.E2E.csproj
 
 API tests use database `cmr_itest`. Playwright uses `cmr_e2e` on port 5088. Both create their roles with the admin connection `CMR_ADMIN_CS` (default `postgres` / `postgres` on localhost).
 
-Demo owner `owner` / `246810`, staff `staff` / `1357`.
+Demo owner username `owner`, PIN `246810`. Staff username `staff`, PIN `1357`. These are also returned by `GET /api/auth/demo` only while `SEED_DEMO=true`. Do not put the PINs in the README.
+
+On Neon, `cmr_app` is created once. Later boots must not `ALTER ROLE` it: `neondb_owner` gets SQLSTATE 42501. Keep the original `CMR_APP_PASSWORD`. That guard is `DatabaseBootstrap.EnsureRolesAsync`.
 
 ## Deploy
 

@@ -72,35 +72,62 @@ public static class DatabaseBootstrap
                 $"Refusing to start as database role '{name}'. The app must use cmr_app, which is not a superuser and cannot bypass row level security.");
     }
 
-    private static async Task EnsureRolesAsync(NpgsqlConnection conn, string? appPassword, ILogger logger, CancellationToken ct)
+    /// <summary>
+    /// Creates cmr_migrator and cmr_app when missing. Never alters an existing cmr_app:
+    /// Neon’s neondb_owner is not a superuser and ALTER ROLE returns 42501, which took down the second boot.
+    /// </summary>
+    internal static async Task EnsureRolesAsync(NpgsqlConnection conn, string? appPassword, ILogger logger, CancellationToken ct)
     {
-        await Execute(conn, """
+        await ExecuteIgnoringPermission(conn, logger, """
             DO $$ BEGIN
               IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'cmr_migrator') THEN
                 CREATE ROLE cmr_migrator NOLOGIN;
               END IF;
             END $$;
-            """, ct);
+            """, "create cmr_migrator", ct);
 
-        if (!string.IsNullOrWhiteSpace(appPassword))
+        var exists = await Scalar<bool>(conn, "SELECT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'cmr_app')", ct);
+        if (!exists)
         {
-            var exists = await Scalar<bool>(conn, "SELECT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'cmr_app')", ct);
+            if (string.IsNullOrWhiteSpace(appPassword))
+                throw new InvalidOperationException("Role cmr_app does not exist. Set CMR_APP_PASSWORD so startup can create it, or create the role before boot.");
+
             var quoted = await Scalar<string>(conn, "SELECT format('%L', @pwd)", ct, ("pwd", appPassword));
-            var verb = exists ? "ALTER ROLE cmr_app WITH LOGIN PASSWORD " : "CREATE ROLE cmr_app LOGIN PASSWORD ";
-            await Execute(conn, verb + quoted + " NOSUPERUSER NOBYPASSRLS NOCREATEDB", ct);
+            try
+            {
+                await Execute(conn, "CREATE ROLE cmr_app LOGIN PASSWORD " + quoted + " NOSUPERUSER NOBYPASSRLS NOCREATEDB", ct);
+            }
+            catch (PostgresException ex) when (ex.SqlState == "42501")
+            {
+                logger.LogWarning(ex, "CREATE ROLE cmr_app with role attributes was denied. Retrying with LOGIN and PASSWORD only.");
+                await Execute(conn, "CREATE ROLE cmr_app LOGIN PASSWORD " + quoted, ct);
+            }
         }
-        else if (!await Scalar<bool>(conn, "SELECT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'cmr_app')", ct))
+        else
         {
-            throw new InvalidOperationException("Role cmr_app does not exist. Set CMR_APP_PASSWORD so startup can create it, or create the role before boot.");
+            logger.LogWarning(
+                "Role cmr_app already exists. Startup will not ALTER ROLE. Neon denies that for neondb_owner (SQLSTATE 42501). The password set when the role was created stays in effect.");
         }
 
         try
         {
             await Execute(conn, "GRANT cmr_migrator TO CURRENT_USER", ct);
         }
-        catch (PostgresException ex) when (ex.SqlState is "42501" or "0LP01")
+        catch (PostgresException ex) when (ex.SqlState is "42501" or "0LP01" or "42710")
         {
-            logger.LogInformation("Migration role is already granted ({Code}).", ex.SqlState);
+            logger.LogWarning("Could not grant cmr_migrator to the current user ({SqlState}). Continuing.", ex.SqlState);
+        }
+    }
+
+    private static async Task ExecuteIgnoringPermission(NpgsqlConnection conn, ILogger logger, string sql, string action, CancellationToken ct)
+    {
+        try
+        {
+            await Execute(conn, sql, ct);
+        }
+        catch (PostgresException ex) when (ex.SqlState is "42501" or "42710")
+        {
+            logger.LogWarning("Skipped {Action} ({SqlState}). Continuing.", action, ex.SqlState);
         }
     }
 
