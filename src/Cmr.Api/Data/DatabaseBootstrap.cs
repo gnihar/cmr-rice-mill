@@ -80,9 +80,11 @@ public static class DatabaseBootstrap
     {
         await ExecuteIgnoringPermission(conn, logger, """
             DO $$ BEGIN
-              IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'cmr_migrator') THEN
+              BEGIN
                 CREATE ROLE cmr_migrator NOLOGIN;
-              END IF;
+              EXCEPTION WHEN duplicate_object OR unique_violation THEN
+                NULL;
+              END;
             END $$;
             """, "create cmr_migrator", ct);
 
@@ -97,10 +99,24 @@ public static class DatabaseBootstrap
             {
                 await Execute(conn, "CREATE ROLE cmr_app LOGIN PASSWORD " + quoted + " NOSUPERUSER NOBYPASSRLS NOCREATEDB", ct);
             }
-            catch (PostgresException ex) when (ex.SqlState == "42501")
+            catch (PostgresException ex) when (ex.SqlState is "42501" or "42710" or "23505")
             {
-                logger.LogWarning(ex, "CREATE ROLE cmr_app with role attributes was denied. Retrying with LOGIN and PASSWORD only.");
-                await Execute(conn, "CREATE ROLE cmr_app LOGIN PASSWORD " + quoted, ct);
+                if (ex.SqlState is "42710" or "23505")
+                {
+                    logger.LogWarning("Role cmr_app was created concurrently ({SqlState}). Continuing.", ex.SqlState);
+                }
+                else
+                {
+                    logger.LogWarning(ex, "CREATE ROLE cmr_app with role attributes was denied. Retrying with LOGIN and PASSWORD only.");
+                    try
+                    {
+                        await Execute(conn, "CREATE ROLE cmr_app LOGIN PASSWORD " + quoted, ct);
+                    }
+                    catch (PostgresException retry) when (retry.SqlState is "42710" or "23505")
+                    {
+                        logger.LogWarning("Role cmr_app was created concurrently ({SqlState}). Continuing.", retry.SqlState);
+                    }
+                }
             }
         }
         else

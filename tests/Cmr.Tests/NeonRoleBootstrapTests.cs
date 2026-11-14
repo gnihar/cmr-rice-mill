@@ -10,6 +10,7 @@ namespace Cmr.Tests;
 /// Neon’s neondb_owner is not a superuser. ALTER ROLE cmr_app returns SQLSTATE 42501.
 /// Startup must keep going when the role already exists.
 /// </summary>
+[Collection("api")]
 public class NeonRoleBootstrapTests(ITestOutputHelper output)
 {
     [Fact]
@@ -21,12 +22,14 @@ public class NeonRoleBootstrapTests(ITestOutputHelper output)
         await admin.OpenAsync();
         await Exec(admin, """
             DO $$ BEGIN
-              IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'cmr_app') THEN
+              BEGIN
                 CREATE ROLE cmr_app LOGIN PASSWORD 'cmr_app_dev' NOSUPERUSER NOBYPASSRLS NOCREATEDB;
-              END IF;
-              IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'limited_owner') THEN
+              EXCEPTION WHEN duplicate_object OR unique_violation THEN NULL;
+              END;
+              BEGIN
                 CREATE ROLE limited_owner LOGIN PASSWORD 'limited_dev' NOSUPERUSER CREATEROLE NOBYPASSRLS;
-              END IF;
+              EXCEPTION WHEN duplicate_object OR unique_violation THEN NULL;
+              END;
             END $$;
             GRANT CONNECT ON DATABASE postgres TO limited_owner;
             """);

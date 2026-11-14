@@ -220,9 +220,9 @@ public sealed class ApiFixture : IAsyncLifetime
         await conn.OpenAsync();
         await Exec(conn, """
             DO $$ BEGIN
-              IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'cmr_migrator') THEN CREATE ROLE cmr_migrator NOLOGIN; END IF;
-              IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'cmr_owner') THEN CREATE ROLE cmr_owner LOGIN PASSWORD 'cmr_owner_dev' NOSUPERUSER NOBYPASSRLS NOCREATEDB; END IF;
-              IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'cmr_app') THEN CREATE ROLE cmr_app LOGIN PASSWORD 'cmr_app_dev' NOSUPERUSER NOBYPASSRLS NOCREATEDB; END IF;
+              BEGIN CREATE ROLE cmr_migrator NOLOGIN; EXCEPTION WHEN duplicate_object OR unique_violation THEN NULL; END;
+              BEGIN CREATE ROLE cmr_owner LOGIN PASSWORD 'cmr_owner_dev' NOSUPERUSER NOBYPASSRLS NOCREATEDB; EXCEPTION WHEN duplicate_object OR unique_violation THEN NULL; END;
+              BEGIN CREATE ROLE cmr_app LOGIN PASSWORD 'cmr_app_dev' NOSUPERUSER NOBYPASSRLS NOCREATEDB; EXCEPTION WHEN duplicate_object OR unique_violation THEN NULL; END;
             END $$;
             GRANT cmr_migrator TO cmr_owner WITH ADMIN OPTION;
             """);
