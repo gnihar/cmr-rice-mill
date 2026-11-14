@@ -1,0 +1,58 @@
+@page "/login"
+@inject ApiClient Api
+@inject LangState Lang
+@inject NavigationManager Nav
+@inject SessionState Session
+
+<h1>@Lang.H("दाखिला", "Log in")</h1>
+<form class="card" data-testid="login-form" @onsubmit="Submit" @onsubmit:preventDefault>
+    <label for="who">@Lang.H("मोबाइल नंबर या यूज़रनेम", "Mobile number or username")</label>
+    <input id="who" data-testid="login-identifier" @bind="identifier" autocomplete="username" />
+    <label for="pin">@Lang.H("पिन", "PIN")</label>
+    <input id="pin" data-testid="login-pin" @bind="pin" type="password" inputmode="numeric" autocomplete="current-password" />
+    @if (error is not null) { <p class="error" data-testid="login-error">@error</p> }
+    <button class="btn wide" data-testid="login-submit" type="submit">@Lang.H("अंदर जाएँ", "Enter")</button>
+</form>
+@if (demo is not null)
+{
+    <div class="card">
+        <p>@Lang.H("डेमो मिल — असली कागज़ नहीं।", "Demo mill — not real papers.")</p>
+        @foreach (var account in demo)
+        {
+            <p><b>@account.Role</b> · @account.Identifier · @Lang.H("पिन", "PIN") @account.Pin</p>
+        }
+    </div>
+}
+
+@code {
+    private string identifier = "";
+    private string pin = "";
+    private string? error;
+    private DemoAccount[]? demo;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var info = await Api.Get<DemoInfo>("api/auth/demo");
+            demo = info?.Accounts;
+        }
+        catch { demo = null; }
+    }
+
+    private async Task Submit()
+    {
+        error = null;
+        var result = await Api.Login(identifier.Trim(), pin.Trim());
+        if (!result.Ok)
+        {
+            error = result.Error;
+            return;
+        }
+        Session.Me = await Api.Me();
+        Nav.NavigateTo(result.Role == "owner" ? "/app" : "/app/staff");
+    }
+
+    private sealed record DemoInfo(DemoAccount[] Accounts);
+    private sealed record DemoAccount(string Role, string Identifier, string Phone, string Pin);
+}

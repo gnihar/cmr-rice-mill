@@ -1,0 +1,12 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Cmr.Api/Cmr.Api.csproj" />
+    <Project Path="src/Cmr.Contracts/Cmr.Contracts.csproj" />
+    <Project Path="src/Cmr.Domain/Cmr.Domain.csproj" />
+    <Project Path="src/Cmr.Web/Cmr.Web.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Cmr.E2E/Cmr.E2E.csproj" />
+    <Project Path="tests/Cmr.Tests/Cmr.Tests.csproj" />
+  </Folder>
+</Solution>

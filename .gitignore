@@ -1,0 +1,13 @@
+bin/
+obj/
+.vs/
+.idea/
+*.user
+data/
+TestResults/
+playwright-report/
+/artifacts/
+*.DotSettings
+appsettings.Local.json
+.env
+**/wwwroot/service-worker-assets.js

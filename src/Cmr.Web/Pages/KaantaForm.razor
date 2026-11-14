@@ -1,0 +1,53 @@
+@page "/app/lots/{LotId:guid}/kaanta"
+@inject ApiClient Api
+@inject LangState Lang
+@inject NavigationManager Nav
+@inject HttpClient Http
+
+<h1>@Lang.H("कांटा पर्ची", "Weighbridge slip")</h1>
+<form class="card" data-testid="kaanta-form" @onsubmit="Save" @onsubmit:preventDefault>
+    <label>@Lang.H("किस तरफ", "Which way")</label>
+    <select @bind="kind"><option value="paddy_in">@Lang.H("धान अंदर", "Paddy in")</option><option value="rice_out">@Lang.H("चावल बाहर", "Rice out")</option></select>
+    <label>@Lang.H("ट्रक", "Truck")</label><input @bind="truck" />
+    <label><input type="checkbox" @bind="missing" /> @Lang.H("पर्ची गुम है", "Slip is missing")</label>
+    @if (!missing)
+    {
+        <label>RST</label><input data-testid="rst" @bind="rst" />
+        <label>@Lang.H("सकल किलो", "Gross kg")</label><input @bind="gross" inputmode="numeric" />
+        <label>@Lang.H("खाली किलो", "Tare kg")</label><input @bind="tare" inputmode="numeric" />
+    }
+    <label>@Lang.H("तारीख और समय", "Date and time")</label><input type="datetime-local" @bind="when" />
+    <InputFile OnChange="e => file = e.File" accept="image/*,application/pdf" capture="environment" />
+    @if (error is not null) { <p class="error">@error</p> }
+    <button class="btn wide" type="submit">@Lang.H("सहेजें", "Save")</button>
+</form>
+
+@code {
+    [Parameter] public Guid LotId { get; set; }
+    private string kind = "rice_out", truck = "", rst = "", gross = "", tare = "";
+    private DateTime when = DateTime.Now;
+    private bool missing;
+    private string? error;
+    private IBrowserFile? file;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        var lot = await Api.Get<LotDetailDto>($"api/lots/{LotId}");
+        if (lot is not null) truck = lot.TruckNo ?? "";
+    }
+
+    private async Task Save()
+    {
+        error = null;
+        try
+        {
+            int? g = int.TryParse(gross, out var gv) ? gv : null;
+            int? t = int.TryParse(tare, out var tv) ? tv : null;
+            var body = new WeighmentWrite(kind, truck, rst, missing, g, t, new DateTimeOffset(when), null, null, null, Guid.NewGuid());
+            var saved = await Api.SendJson<WriteResultDto>(HttpMethod.Post, $"api/lots/{LotId}/weighments", body);
+            if (file is not null) await Uploader.Send(Http, file, "weighment", saved.Id);
+            Nav.NavigateTo($"/app/lots/{LotId}");
+        }
+        catch (Exception ex) { error = ex.Message; }
+    }
+}

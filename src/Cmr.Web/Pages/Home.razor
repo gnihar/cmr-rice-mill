@@ -1,0 +1,29 @@
+@page "/"
+@inject LangState Lang
+@inject NavigationManager Nav
+@inject SessionState Session
+
+<section class="hero" data-testid="home">
+    <p class="pill ok">@Lang.H("मध्य प्रदेश · कस्टम मिलिंग", "Madhya Pradesh · custom milling")</p>
+    <h1>@Lang.H("धान से चावल तक, कागज़ एक जगह", "From paddy to rice, papers in one place")</h1>
+    <p>@Lang.H("धान चालान, जमा आदेश, स्वीकृति और कांटा पर्ची। मालिक को हिसाब, मुनशी को बड़ी बटन।", "Paddy challan, deposit order, acceptance and weighbridge slip. Money for the owner, big buttons for the munshi.")</p>
+    <a class="btn" data-testid="home-login" href="/login">@Lang.H("दाखिल करें", "Log in")</a>
+</section>
+<div class="card">
+    <h2>@Lang.H("कैसे चलता है", "How a lot moves")</h2>
+    <div class="steps">
+        <span>@Lang.H("धान आया", "Paddy in")</span>
+        <span>@Lang.H("पिसाई", "Milling")</span>
+        <span>@Lang.H("जमा आदेश", "Deposit order")</span>
+        <span>@Lang.H("स्वीकृति", "Acceptance")</span>
+    </div>
+    <p>@Lang.H("चालान बाद में भी जुड़ सकता है। स्वीकृति तभी जब जमा आदेश हो। हरी निशानी तब, जब सारे कागज़ आ जाएँ।", "The challan can be added later. An acceptance needs a deposit order. The lot turns green only when every paper is in.")</p>
+</div>
+
+@code {
+    protected override void OnInitialized()
+    {
+        if (Session.Me is not null)
+            Nav.NavigateTo(Session.IsOwner ? "/app" : "/app/staff");
+    }
+}

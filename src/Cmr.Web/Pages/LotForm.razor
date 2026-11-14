@@ -1,0 +1,43 @@
+@page "/app/lots/new"
+@inject ApiClient Api
+@inject LangState Lang
+@inject NavigationManager Nav
+
+<h1>@Lang.H("नया लॉट", "New lot")</h1>
+<form class="card" @onsubmit="Save" @onsubmit:preventDefault>
+    <label>@Lang.H("लॉट नंबर", "Lot number")</label>
+    <input data-testid="lot-no" @bind="lotNo" />
+    <label>@Lang.H("केंद्र", "Centre")</label>
+    <input data-testid="lot-centre" @bind="centre" />
+    <label>@Lang.H("ट्रक", "Truck")</label>
+    <input data-testid="lot-truck" @bind="truck" />
+    <label>@Lang.H("धान (क्विंटल)", "Paddy (qtl)")</label>
+    <input data-testid="lot-paddy" @bind="paddy" inputmode="decimal" />
+    <label>@Lang.H("आउट-टर्न %", "Out-turn %")</label>
+    <div class="row">
+        <input @bind="outturn" inputmode="decimal" />
+        <button type="button" class="btn ghost" @onclick='() => outturn = "67"'>67</button>
+        <button type="button" class="btn ghost" @onclick='() => outturn = "68"'>68</button>
+    </div>
+    @if (error is not null) { <p class="error">@error</p> }
+    <button class="btn wide" data-testid="save-lot" type="submit">@Lang.H("सहेजें", "Save")</button>
+</form>
+
+@code {
+    private string lotNo = "", centre = "", truck = "", paddy = "", outturn = "67", error = "";
+    private string? errorMsg { get => string.IsNullOrEmpty(error) ? null : error; set => error = value ?? ""; }
+
+    private async Task Save()
+    {
+        error = "";
+        try
+        {
+            decimal? qty = decimal.TryParse(paddy, out var q) ? q : null;
+            decimal? pct = decimal.TryParse(outturn, out var p) ? p : 67m;
+            var result = await Api.SendJson<WriteResultDto>(HttpMethod.Post, "api/lots", new LotWrite(lotNo, centre, null, truck, qty, pct, "paddy_received", DateOnly.FromDateTime(DateTime.Today), null, Guid.NewGuid(), null));
+            Nav.NavigateTo($"/app/lots/{result.Id}");
+        }
+        catch (QueueSavedException) { error = Lang.H("ऑफलाइन — कतार में रख दिया।", "Offline — queued."); }
+        catch (ApiException ex) { error = ex.Message; }
+    }
+}

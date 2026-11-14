@@ -1,0 +1,30 @@
+@page "/app/lots"
+@inject ApiClient Api
+@inject LangState Lang
+
+<h1>@Lang.H("लॉट", "Lots")</h1>
+<div class="row">
+    <input data-testid="lot-search" @bind="q" @bind:event="oninput" placeholder="@Lang.H("लॉट, ट्रक, PDY, CDO, CMRA, RST", "Lot, truck, PDY, CDO, CMRA, RST")" />
+    <a class="btn" href="/app/lots/new">@Lang.H("नया", "New")</a>
+</div>
+@if (lots is null) { <p>…</p> }
+else
+{
+    @foreach (var lot in Filtered)
+    {
+        <a class="card" style="display:block" href="@($"/app/lots/{lot.Id}")" data-testid="lot-card">
+            <b>@lot.LotNo</b> · @lot.CentreName · @lot.TruckNo
+            <span class="pill @(lot.IsComplete ? "ok" : "warn")">@(lot.IsComplete ? Lang.H("पूरा", "Complete") : string.Join(", ", lot.Missing))</span>
+            <div>@Lang.H("धान", "Paddy") @lot.PaddyQtl · @Lang.H("देय", "Due") @lot.RiceDueQtl · @Lang.H("स्वीकृत", "Accepted") @lot.RiceAcceptedQtl</div>
+        </a>
+    }
+}
+
+@code {
+    private string q = "";
+    private LotSummaryDto[]? lots;
+    private IEnumerable<LotSummaryDto> Filtered => lots?.Where(l =>
+        string.IsNullOrWhiteSpace(q) || l.LotNo.Contains(q, StringComparison.OrdinalIgnoreCase) || (l.TruckNo ?? "").Contains(q, StringComparison.OrdinalIgnoreCase) || l.CentreName.Contains(q, StringComparison.OrdinalIgnoreCase)) ?? [];
+
+    protected override async Task OnInitializedAsync() => lots = await Api.Get<LotSummaryDto[]>("api/lots");
+}

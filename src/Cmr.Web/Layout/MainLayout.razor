@@ -1,0 +1,87 @@
+@inherits LayoutComponentBase
+@inject LangState Lang
+@inject SessionState Session
+@inject ApiClient Api
+@inject IJSRuntime Js
+@inject NavigationManager Nav
+@implements IDisposable
+
+<div class="shell">
+    <header class="top">
+        <a class="brand" href="@(Session.IsOwner ? "/app" : Session.Me is null ? "/" : "/app/staff")">सीएमआर</a>
+        <div class="row">
+            @if (Session.Queued > 0)
+            {
+                <span>@Lang.H($"{Session.Queued} कतार में", $"{Session.Queued} queued")</span>
+            }
+            <button class="lang" type="button" @onclick="Toggle">@(Lang.Code == "hi" ? "EN" : "हि")</button>
+            @if (Session.Me is not null)
+            {
+                <button class="lang" type="button" data-testid="logout" @onclick="Logout">@Lang.H("बाहर", "Logout")</button>
+            }
+        </div>
+    </header>
+    @if (Session.Me is not null)
+    {
+        <nav class="links">
+            @if (Session.IsOwner)
+            {
+                <a href="/app">@Lang.H("आज", "Today")</a>
+                <a href="/app/lots">@Lang.H("लॉट", "Lots")</a>
+                <a href="/app/money">@Lang.H("पैसा", "Money")</a>
+                <a href="/app/bags">@Lang.H("बोरियाँ", "Bags")</a>
+                <a href="/app/vault">@Lang.H("कागज़", "Papers")</a>
+                <a href="/app/reports">@Lang.H("रिपोर्ट", "Reports")</a>
+                <a href="/app/settings">@Lang.H("सेटिंग", "Settings")</a>
+            }
+            else
+            {
+                <a href="/app/staff">@Lang.H("घर", "Home")</a>
+                <a href="/app/lots">@Lang.H("लॉट", "Lots")</a>
+                <a href="/app/by-products">@Lang.H("उप-उत्पाद", "By-products")</a>
+                <a href="/app/bags">@Lang.H("बोरियाँ", "Bags")</a>
+            }
+        </nav>
+    }
+    <main>
+        @if (!_ready)
+        {
+            <p class="boot">@Lang.H("खुल रहा है…", "Opening…")</p>
+        }
+        else
+        {
+            @Body
+        }
+    </main>
+    <footer class="foot">@Lang.H("सीएमआर रजिस्टर", "CMR register") v@(AppVersion.Current)</footer>
+</div>
+
+@code {
+    private bool _ready;
+
+    protected override async Task OnInitializedAsync()
+    {
+        Lang.Changed += StateHasChanged;
+        Session.Changed += StateHasChanged;
+        await Lang.Init(Js);
+        try { await Api.Flush(); } catch { }
+        Session.Me = await Api.Me();
+        Session.Touch();
+        _ready = true;
+    }
+
+    private async Task Toggle() => await Lang.Set(Js, Lang.Code == "hi" ? "en" : "hi");
+
+    private async Task Logout()
+    {
+        await Api.Logout();
+        Session.Me = null;
+        Nav.NavigateTo("/");
+    }
+
+    public void Dispose()
+    {
+        Lang.Changed -= StateHasChanged;
+        Session.Changed -= StateHasChanged;
+    }
+}

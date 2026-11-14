@@ -1,0 +1,55 @@
+@page "/app/lots/{LotId:guid}/acceptance"
+@inject ApiClient Api
+@inject LangState Lang
+@inject NavigationManager Nav
+@inject HttpClient Http
+
+<h1>@Lang.H("स्वीकृति पत्र", "Acceptance")</h1>
+<form class="card" data-testid="acceptance-form" @onsubmit="Save" @onsubmit:preventDefault>
+    <label>CMRA</label><input data-testid="cmra-no" @bind="no" />
+    <label>@Lang.H("तारीख", "Date")</label><input type="date" @bind="date" />
+    <label>@Lang.H("स्वीकृत चावल (क्विंटल)", "Accepted rice (qtl)")</label><input @bind="qty" inputmode="decimal" />
+    <label>@Lang.H("ट्रक", "Truck")</label><input @bind="truck" />
+    <label>@Lang.H("तौल पर्ची / RST", "Toul parchi / RST")</label><input data-testid="toul" @bind="toul" />
+    <label>@Lang.H("नई बोरियाँ", "New bags")</label><input @bind="bagsNew" inputmode="numeric" />
+    <label>@Lang.H("पुरानी बोरियाँ", "Old bags")</label><input @bind="bagsOld" inputmode="numeric" />
+    <label>@Lang.H("जारी केंद्र", "Issue centre")</label><input @bind="centre" />
+    <InputFile OnChange="e => file = e.File" accept="image/*,application/pdf" />
+    @if (error is not null) { <p class="error">@error</p> }
+    <button class="btn wide" type="submit">@Lang.H("सहेजें", "Save")</button>
+</form>
+
+@code {
+    [Parameter] public Guid LotId { get; set; }
+    private string no = "CMRA", qty = "", truck = "", toul = "", bagsNew = "0", bagsOld = "0", centre = "";
+    private DateTime date = DateTime.Today;
+    private string? error;
+    private IBrowserFile? file;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        var lot = await Api.Get<LotDetailDto>($"api/lots/{LotId}");
+        if (lot is null) return;
+        truck = lot.TruckNo ?? ""; centre = lot.CentreName;
+        if (lot.Balance.RiceDueQtl is decimal due) qty = due.ToString();
+        if (lot.Acceptance is not null)
+        {
+            no = lot.Acceptance.CmraNo; qty = lot.Acceptance.AcceptedQtyQtl.ToString(); toul = lot.Acceptance.ToulParchiNo ?? "";
+            bagsNew = lot.Acceptance.BagsNew.ToString(); bagsOld = lot.Acceptance.BagsOld.ToString();
+            date = lot.Acceptance.AcceptedOn.ToDateTime(TimeOnly.MinValue);
+        }
+    }
+
+    private async Task Save()
+    {
+        error = null;
+        try
+        {
+            var body = new AcceptanceWrite(no, DateOnly.FromDateTime(date), decimal.Parse(qty), int.Parse(bagsNew), int.Parse(bagsOld), truck, toul, null, null, centre, null, null, null, Guid.NewGuid());
+            var saved = await Api.SendJson<WriteResultDto>(HttpMethod.Put, $"api/lots/{LotId}/acceptance", body);
+            if (file is not null) await Uploader.Send(Http, file, "acceptance", saved.Id);
+            Nav.NavigateTo($"/app/lots/{LotId}");
+        }
+        catch (Exception ex) { error = ex.Message; }
+    }
+}

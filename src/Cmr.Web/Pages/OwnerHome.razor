@@ -1,0 +1,43 @@
+@page "/app"
+@inject LangState Lang
+@inject ApiClient Api
+@inject SessionState Session
+@inject NavigationManager Nav
+
+<h1 data-testid="owner-dashboard">@Lang.H("आज का हिसाब", "Today")</h1>
+@if (dash is null)
+{
+    <p>@Lang.H("लोड हो रहा है…", "Loading…")</p>
+}
+else
+{
+    <div class="stats">
+        <div class="stat"><span>@Lang.H("धान आज (क्वि.)", "Paddy today (qtl)")</span><b>@dash.PaddyInTodayQtl</b></div>
+        <div class="stat"><span>@Lang.H("चावल स्वीकृत", "Rice accepted")</span><b>@dash.RiceAcceptedTodayQtl</b></div>
+        <div class="stat"><span>@Lang.H("अधूरे लॉट", "Incomplete")</span><b>@dash.IncompleteLots</b></div>
+        <div class="stat"><span>@Lang.H("स्वीकृति बाकी", "Awaiting acceptance")</span><b>@dash.PendingAcceptances</b></div>
+        @if (money is not null)
+        {
+            <div class="stat" data-testid="money-today"><span>@Lang.H("खर्च आज", "Expenses today")</span><b>₹@money.ExpensesToday</b></div>
+            <div class="stat"><span>@Lang.H("आमद आज", "Receipts today")</span><b>₹@money.ReceiptsToday</b></div>
+        }
+    </div>
+    <div class="card">
+        @foreach (var lot in dash.RecentLots)
+        {
+            <p><a href="@($"/app/lots/{lot.Id}")">@lot.LotNo</a> · @lot.CentreName · <span class="pill @(lot.IsComplete ? "ok" : "warn")" data-testid="lot-status">@(lot.IsComplete ? Lang.H("पूरा", "Complete") : Lang.H("अधूरा", "Missing"))</span></p>
+        }
+    </div>
+}
+
+@code {
+    private OwnerDashboardDto? dash;
+    private OwnerDashboardDto? money;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (Session.Me is { Role: "staff" }) { Nav.NavigateTo("/app/staff"); return; }
+        dash = await Api.Get<OwnerDashboardDto>("api/dashboard");
+        money = Session.IsOwner ? dash : null;
+    }
+}

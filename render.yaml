@@ -1,0 +1,21 @@
+services:
+  - type: web
+    name: cmr-rice-mill
+    runtime: docker
+    plan: free
+    region: singapore
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /api/health
+    envVars:
+      - key: ASPNETCORE_ENVIRONMENT
+        value: Production
+      - key: DATABASE_URL
+        sync: false
+      - key: CMR_APP_PASSWORD
+        sync: false
+      - key: JWT_KEY
+        sync: false
+      - key: SEED_DEMO
+        value: "false"
+      - key: STORAGE_ROOT
+        value: /tmp/cmr-files

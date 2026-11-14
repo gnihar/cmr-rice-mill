@@ -1,0 +1,188 @@
+@page "/app/by-products"
+@page "/app/money"
+@page "/app/bags"
+@page "/app/vault"
+@page "/app/reports"
+@page "/app/settings"
+@page "/app/audit"
+@page "/privacy"
+@inject ApiClient Api
+@inject LangState Lang
+@inject SessionState Session
+@inject NavigationManager Nav
+
+@if (Nav.Uri.Contains("/privacy"))
+{
+    <h1>@Lang.H("निजता", "Privacy")</h1>
+    <p>@Lang.H("मिल अपने स्टाफ और मालिक के नाम व फोन रखती है। यह ऐप प्रोसेसर है। आधार या पैन नहीं माँगा जाता।", "The mill keeps staff and owner names and phones. This app is the processor. It does not ask for Aadhaar or PAN.")</p>
+}
+else if (Nav.Uri.Contains("/settings"))
+{
+    <h1>@Lang.H("सेटिंग", "Settings")</h1>
+    <p data-testid="app-version">v@(AppVersion.Current)</p>
+    <form class="card" @onsubmit="AddUser" @onsubmit:preventDefault>
+        <h2>@Lang.H("कर्मचारी जोड़ें", "Add staff")</h2>
+        <input @bind="name" placeholder="@Lang.H("नाम", "Name")" />
+        <input @bind="username" placeholder="@Lang.H("यूज़रनेम", "Username")" />
+        <input @bind="phone" placeholder="@Lang.H("मोबाइल", "Mobile")" />
+        <input @bind="pin" placeholder="@Lang.H("पिन, 4–6 अंक", "PIN, 4–6 digits")" />
+        <button class="btn" type="submit">@Lang.H("जोड़ें", "Add")</button>
+        @if (msg is not null) { <p>@msg</p> }
+    </form>
+    @if (users is not null)
+    {
+        @foreach (var user in users)
+        {
+            <p>@user.Name · @user.Username · @user.Phone · @user.Role · @user.Status</p>
+        }
+    }
+}
+else if (Nav.Uri.Contains("/reports"))
+{
+    <h1>@Lang.H("रिपोर्ट", "Reports")</h1>
+    <p><a class="btn" href="/api/reports/lots.csv">CSV</a> <a class="btn" href="/api/reports/lots.pdf">PDF</a></p>
+}
+else if (Nav.Uri.Contains("/vault"))
+{
+    <h1>@Lang.H("कागज़ खजाना", "Document vault")</h1>
+    <input @bind="q" @bind:event="oninput" placeholder="PDY / CDO / CMRA / RST / lot / truck" />
+    <button class="btn" @onclick="LoadVault">@Lang.H("खोजें", "Search")</button>
+    @if (hits is not null)
+    {
+        @foreach (var hit in hits)
+        {
+            <p><a href="@($"/api/documents/{hit.DocumentId}/file")">@hit.RefNo</a> · @hit.LotNo · @hit.TruckNo · @hit.DocDate</p>
+        }
+    }
+}
+else if (Nav.Uri.Contains("/bags"))
+{
+    <h1>@Lang.H("बोरी खाता", "Bag ledger")</h1>
+    @if (bags is not null)
+    {
+        <div class="stats">
+            <div class="stat"><span>@Lang.H("नई", "New")</span><b>@bags.NewBags.Balance</b></div>
+            <div class="stat"><span>@Lang.H("पुरानी", "Old")</span><b>@bags.OldBags.Balance</b></div>
+        </div>
+    }
+}
+else if (Nav.Uri.Contains("/money"))
+{
+    <h1 data-testid="money-page">@Lang.H("पैसा", "Money")</h1>
+    <form class="card" @onsubmit="AddExpense" @onsubmit:preventDefault>
+        <h2>@Lang.H("खर्च", "Expense")</h2>
+        <input @bind="amount" inputmode="decimal" placeholder="@Lang.H("रकम", "Amount")" />
+        <select @bind="category">
+            <option value="labour">@Lang.H("मजदूरी", "Labour")</option>
+            <option value="transport">@Lang.H("ढुलाई", "Transport")</option>
+            <option value="fuel">@Lang.H("डीजल", "Fuel")</option>
+            <option value="misc">@Lang.H("अन्य", "Other")</option>
+        </select>
+        <button class="btn" type="submit">@Lang.H("जोड़ें", "Add")</button>
+    </form>
+    @if (expenses is not null)
+    {
+        @foreach (var row in expenses) { <p>@row.SpentOn · @row.Category · ₹@row.Amount</p> }
+    }
+    <h2>@Lang.H("उप-उत्पाद का रेट", "By-product price")</h2>
+    @if (priced is not null)
+    {
+        @foreach (var sale in priced)
+        {
+            <p>@sale.Product · @sale.Qty @sale.Unit · @sale.BuyerName · ₹@sale.Amount</p>
+        }
+    }
+}
+else if (Nav.Uri.Contains("/audit"))
+{
+    <h1>@Lang.H("हिसाब-किताब का रिकॉर्ड", "Audit")</h1>
+    @if (audit is not null)
+    {
+        @foreach (var row in audit) { <p>@row.Ts.ToLocalTime():g · @row.ActorName · @row.Action · @row.EntityType</p> }
+    }
+}
+else
+{
+    <h1>@Lang.H("उप-उत्पाद", "By-products")</h1>
+    <form class="card" data-testid="byproduct-form" @onsubmit="AddSale" @onsubmit:preventDefault>
+        <select @bind="product">
+            <option value="husk">@Lang.H("भूसी", "Husk")</option>
+            <option value="bran">@Lang.H("चोकर", "Bran")</option>
+            <option value="kanni">@Lang.H("कनी", "Kanni")</option>
+            <option value="cattle_feed_broken">@Lang.H("पशु आहार", "Cattle feed")</option>
+            <option value="rejection">@Lang.H("रिजेक्शन", "Rejection")</option>
+            <option value="misc">@Lang.H("अन्य", "Other")</option>
+        </select>
+        <input @bind="saleQty" inputmode="decimal" placeholder="@Lang.H("मात्रा", "Quantity")" />
+        <input @bind="buyer" placeholder="@Lang.H("खरीदार", "Buyer")" />
+        <input @bind="vehicle" placeholder="@Lang.H("ट्रक", "Truck")" />
+        <button class="btn" type="submit">@Lang.H("सहेजें", "Save")</button>
+        @if (msg is not null) { <p>@msg</p> }
+    </form>
+    @if (sales is not null)
+    {
+        @foreach (var sale in sales)
+        {
+            <p>@sale.SoldOn · @sale.Product · @sale.Qty @sale.Unit · @sale.BuyerName · @sale.VehicleNo · @sale.EntryStatus</p>
+        }
+    }
+}
+
+@code {
+    private string name = "", username = "", phone = "", pin = "", q = "", amount = "", category = "labour", product = "husk", saleQty = "", buyer = "", vehicle = "";
+    private string? msg;
+    private UserDto[]? users;
+    private VaultHitDto[]? hits;
+    private BagLedgerDto? bags;
+    private ExpenseDto[]? expenses;
+    private ByProductDto[]? sales;
+    private ByProductOwnerDto[]? priced;
+    private AuditDto[]? audit;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var path = new Uri(Nav.Uri).AbsolutePath;
+        if (path.Contains("/settings") && Session.IsOwner) users = await Api.Get<UserDto[]>("api/users");
+        if (path.Contains("/bags")) bags = await Api.Get<BagLedgerDto>("api/bags");
+        if (path.Contains("/money") && Session.IsOwner)
+        {
+            expenses = await Api.Get<ExpenseDto[]>("api/expenses");
+            priced = await Api.Get<ByProductOwnerDto[]>("api/by-products");
+        }
+        if (path.Contains("/by-products")) sales = await Api.Get<ByProductDto[]>("api/by-products");
+        if (path.Contains("/audit") && Session.IsOwner) audit = await Api.Get<AuditDto[]>("api/audit");
+        if (path.Contains("/vault")) await LoadVault();
+    }
+
+    private async Task LoadVault() => hits = await Api.Get<VaultHitDto[]>($"api/vault?q={Uri.EscapeDataString(q)}");
+
+    private async Task AddUser()
+    {
+        msg = null;
+        try
+        {
+            await Api.SendJson<UserDto>(HttpMethod.Post, "api/users", new UserWrite(name, username, phone, pin));
+            users = await Api.Get<UserDto[]>("api/users");
+            msg = Lang.H("जुड़ गया।", "Added.");
+        }
+        catch (Exception ex) { msg = ex.Message; }
+    }
+
+    private async Task AddExpense()
+    {
+        await Api.SendJson<ExpenseDto>(HttpMethod.Post, "api/expenses", new ExpenseWrite(DateOnly.FromDateTime(DateTime.Today), category, decimal.Parse(amount), "cash", null, null, null, null, Guid.NewGuid()));
+        expenses = await Api.Get<ExpenseDto[]>("api/expenses");
+    }
+
+    private async Task AddSale()
+    {
+        msg = null;
+        try
+        {
+            await Api.SendJson<WriteResultDto>(HttpMethod.Post, "api/by-products", new ByProductWrite(DateOnly.FromDateTime(DateTime.Today), product, decimal.Parse(saleQty), "qtl", buyer, vehicle, null, null, Guid.NewGuid()));
+            sales = await Api.Get<ByProductDto[]>("api/by-products");
+            msg = Lang.H("लॉक — दर मालिक भरेगा।", "Locked. The owner adds the rate.");
+        }
+        catch (Exception ex) { msg = ex.Message; }
+    }
+}

@@ -1,0 +1,106 @@
+@page "/app/lots/{Id:guid}"
+@inject ApiClient Api
+@inject LangState Lang
+@inject SessionState Session
+
+@if (lot is null) { <p>…</p> }
+else
+{
+    <h1 data-testid="lot-title">@lot.LotNo</h1>
+    <p>@lot.CentreName · @lot.TruckNo</p>
+    <div class="steps">
+        @foreach (var step in steps)
+        {
+            <span class="@(step == lot.Stage ? "on" : "")">@Label(step)</span>
+        }
+    </div>
+    <div class="card" data-testid="lot-balance">
+        <p>@Lang.H("धान", "Paddy") <b>@lot.Balance.PaddyQtl</b> @Lang.H("क्वि.", "qtl")</p>
+        <p>@Lang.H("चावल देय", "Rice due") (@lot.OutturnPct%) <b>@lot.Balance.RiceDueQtl</b></p>
+        <p>@Lang.H("स्वीकृत", "Accepted") <b>@lot.Balance.RiceAcceptedQtl</b></p>
+        <p>@Lang.H("बाकी", "Pending") <b>@lot.Balance.RicePendingQtl</b></p>
+    </div>
+    <div class="card" data-testid="lot-completeness" data-state="@(lot.Check.IsComplete ? "complete" : "missing")">
+        <span class="pill @(lot.Check.IsComplete ? "ok" : "warn")">@(lot.Check.IsComplete ? Lang.H("पूरा — हरा", "Complete") : Lang.H("अधूरा", "Incomplete"))</span>
+        @if (lot.Check.Missing.Count > 0) { <p>@Lang.H("जो नहीं है", "Missing"): @string.Join(", ", lot.Check.Missing.Select(Miss))</p> }
+        @if (lot.Check.Mismatches.Count > 0) { <p class="bad">@Lang.H("मेल नहीं खाता", "Mismatch"): @string.Join(", ", lot.Check.Mismatches)</p> }
+    </div>
+    <div class="grid">
+        <a class="big" data-testid="add-paddy" href="@($"/app/lots/{Id}/paddy")">@Lang.H("धान चालान", "Paddy challan") @(lot.Ro is null ? "" : "✓")</a>
+        <a class="big" data-testid="add-do" href="@($"/app/lots/{Id}/do")">@Lang.H("जमा आदेश", "Deposit order") @(lot.Do is null ? "" : "✓")</a>
+        <a class="big" data-testid="add-acceptance" href="@($"/app/lots/{Id}/acceptance")">@Lang.H("स्वीकृति", "Acceptance") @(lot.Acceptance is null ? "" : "✓")</a>
+        <a class="big" data-testid="add-kaanta" href="@($"/app/lots/{Id}/kaanta")">@Lang.H("कांटा पर्ची", "Weighbridge") (@lot.Weighments.Count)</a>
+    </div>
+    @Paper(Lang.H("धान चालान", "Paddy challan"), lot.Ro?.EntryStatus, lot.Ro?.ReviewNote, "paddy_ro", lot.Ro?.Id)
+    @Paper(Lang.H("जमा आदेश", "Deposit order"), lot.Do?.EntryStatus, lot.Do?.ReviewNote, "cmr_do", lot.Do?.Id)
+    @Paper(Lang.H("स्वीकृति", "Acceptance"), lot.Acceptance?.EntryStatus, lot.Acceptance?.ReviewNote, "acceptance", lot.Acceptance?.Id)
+    @foreach (var doc in lot.Documents)
+    {
+        <p><a href="@($"/api/documents/{doc.Id}/file")" target="_blank">@doc.OwnerType · @doc.Mime</a></p>
+    }
+    <a class="btn ghost" href="@Wa()">@Lang.H("WhatsApp पर भेजें", "Share on WhatsApp")</a>
+}
+
+@code {
+    [Parameter] public Guid Id { get; set; }
+    private LotDetailDto? lot;
+    private string[] steps = ["paddy_received", "milling", "do_received", "dispatched", "accepted", "closed"];
+    protected override async Task OnParametersSetAsync() => lot = await Api.Get<LotDetailDto>($"api/lots/{Id}");
+
+    private string Label(string step) => step switch
+    {
+        "paddy_received" => Lang.H("धान", "Paddy"),
+        "milling" => Lang.H("पिसाई", "Milling"),
+        "do_received" => Lang.H("जमा आदेश", "DO"),
+        "dispatched" => Lang.H("रवाना", "Sent"),
+        "accepted" => Lang.H("स्वीकृत", "Accepted"),
+        _ => Lang.H("बंद", "Closed")
+    };
+
+    private string Miss(string code) => code switch
+    {
+        "ro" => Lang.H("धान चालान", "paddy challan"),
+        "ro_file" => Lang.H("चालान की फोटो", "challan photo"),
+        "do" => Lang.H("जमा आदेश", "deposit order"),
+        "do_file" => Lang.H("जमा आदेश की फोटो", "DO photo"),
+        "acceptance" => Lang.H("स्वीकृति", "acceptance"),
+        "acceptance_file" => Lang.H("स्वीकृति की फोटो", "acceptance photo"),
+        "kaanta" => Lang.H("कांटा पर्ची", "weighbridge slip"),
+        "kaanta_file" => Lang.H("कांटा की फोटो", "slip photo"),
+        _ => code
+    };
+
+    private RenderFragment Paper(string title, string? status, string? review, string type, Guid? entityId) => builder =>
+    {
+        if (status is null || entityId is null) return;
+        builder.OpenElement(0, "div");
+        builder.AddAttribute(1, "class", "card");
+        builder.OpenElement(2, "p");
+        builder.AddContent(3, $"{title}: {status}");
+        if (status == "submitted" && !Session.IsOwner) builder.AddContent(4, " · " + Lang.H("लॉक", "locked"));
+        builder.CloseElement();
+        if (!string.IsNullOrWhiteSpace(review)) { builder.OpenElement(5, "p"); builder.AddContent(6, review); builder.CloseElement(); }
+        if (Session.IsOwner && status != "approved")
+        {
+            builder.OpenElement(7, "button");
+            builder.AddAttribute(8, "class", "btn ghost");
+            builder.AddAttribute(9, "onclick", EventCallback.Factory.Create(this, () => Act("approve", type, entityId.Value)));
+            builder.AddContent(10, Lang.H("मंजूर", "Approve"));
+            builder.CloseElement();
+        }
+        builder.CloseElement();
+    };
+
+    private async Task Act(string action, string type, Guid entityId)
+    {
+        if (action == "approve")
+            await Api.SendEmpty(HttpMethod.Post, "api/entries/approve", new ApproveRequest(type, entityId));
+        lot = await Api.Get<LotDetailDto>($"api/lots/{Id}");
+    }
+
+    private string Wa()
+    {
+        var text = $"{lot!.LotNo}\n{lot.CentreName}\n{Lang.H("धान", "Paddy")} {lot.Balance.PaddyQtl}\n{Lang.H("देय", "Due")} {lot.Balance.RiceDueQtl}\n{Lang.H("स्वीकृत", "Accepted")} {lot.Balance.RiceAcceptedQtl}";
+        return "https://wa.me/?text=" + Uri.EscapeDataString(text);
+    }
+}

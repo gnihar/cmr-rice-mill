@@ -1,0 +1,29 @@
+@page "/app/staff"
+@inject LangState Lang
+@inject ApiClient Api
+
+<h1 data-testid="staff-home">@Lang.H("आज का काम", "Today's work")</h1>
+<div class="grid">
+    <a class="big" data-testid="nav-new-lot" href="/app/lots/new">@Lang.H("नया लॉट", "New lot")</a>
+    <a class="big" data-testid="nav-paddy" href="/app/lots">@Lang.H("धान चालान", "Paddy challan")</a>
+    <a class="big" href="/app/lots">@Lang.H("जमा आदेश", "Deposit order")</a>
+    <a class="big" href="/app/lots">@Lang.H("स्वीकृति", "Acceptance")</a>
+    <a class="big" href="/app/lots">@Lang.H("कांटा पर्ची", "Weighbridge slip")</a>
+    <a class="big" href="/app/bags">@Lang.H("बोरियाँ", "Bags")</a>
+    <a class="big" href="/app/by-products">@Lang.H("उप-उत्पाद", "By-product")</a>
+</div>
+@if (dash is not null)
+{
+    <div class="card">
+        <p>@Lang.H("अधूरे लॉट", "Incomplete lots"): <b>@dash.IncompleteLots</b></p>
+        <p>@Lang.H("स्वीकृति बाकी", "Awaiting acceptance"): <b>@dash.PendingAcceptances</b></p>
+    </div>
+}
+
+@code {
+    private DashboardDto? dash;
+    protected override async Task OnInitializedAsync()
+    {
+        try { dash = await Api.Get<DashboardDto>("api/dashboard"); } catch { }
+    }
+}

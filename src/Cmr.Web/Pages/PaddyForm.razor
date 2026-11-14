@@ -1,0 +1,81 @@
+@page "/app/lots/{LotId:guid}/paddy"
+@inject ApiClient Api
+@inject LangState Lang
+@inject NavigationManager Nav
+
+<h1>@Lang.H("धान चालान", "Paddy challan")</h1>
+<form class="card" data-testid="paddy-form" @onsubmit="Save" @onsubmit:preventDefault>
+    <label>PDY</label><input data-testid="ro-no" @bind="ro" />
+    <label>@Lang.H("तारीख", "Date")</label><input data-testid="ro-date" type="date" @bind="date" />
+    <label>@Lang.H("केंद्र", "Centre")</label><input data-testid="centre" @bind="centre" />
+    <label>@Lang.H("ट्रक", "Truck")</label><input data-testid="truck" @bind="truck" />
+    <label>@Lang.H("चालान मात्रा (क्विंटल)", "Challan qty (qtl)")</label><input data-testid="qty" @bind="qty" inputmode="decimal" />
+    <label>@Lang.H("नई बोरियाँ", "New bags")</label><input data-testid="bags-new" @bind="bagsNew" inputmode="numeric" />
+    <label>@Lang.H("पुरानी बोरियाँ", "Old bags")</label><input data-testid="bags-old" @bind="bagsOld" inputmode="numeric" />
+    <label>@Lang.H("कागज़ पर छपा लॉट", "Lot number printed on the paper")</label><input @bind="printed" />
+    <label>@Lang.H("फोटो, PDF या WhatsApp", "Photo, PDF or WhatsApp")</label>
+    <InputFile OnChange="OnFile" accept="image/jpeg,image/png,application/pdf,.jpg,.jpeg,.png,.pdf" />
+    @if (warn is not null) { <p class="pill warn">@warn</p> }
+    @if (error is not null) { <p class="error">@error</p> }
+    <button class="btn wide" data-testid="save-paddy" type="submit">@Lang.H("सहेजें", "Save")</button>
+</form>
+@if (locked) { <p class="pill warn" data-testid="entry-locked">@Lang.H("लॉक — जमा हो गया। बदलने के लिए मालिक वापस भेजे।", "Locked. The owner must send it back before you can edit.")</p> }
+
+@code {
+    [Parameter] public Guid LotId { get; set; }
+    private string ro = "PDY", centre = "", truck = "", qty = "", bagsNew = "0", bagsOld = "0", printed = "";
+    private DateTime date = DateTime.Today;
+    private string? error, warn;
+    private bool locked;
+    private IBrowserFile? file;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        var lot = await Api.Get<LotDetailDto>($"api/lots/{LotId}");
+        if (lot is null) return;
+        centre = lot.CentreName;
+        truck = lot.TruckNo ?? "";
+        printed = lot.LotNo;
+        if (lot.Ro is not null)
+        {
+            ro = lot.Ro.RoNo; qty = lot.Ro.PaddyQtyQtl.ToString(); bagsNew = lot.Ro.BagsNew.ToString(); bagsOld = lot.Ro.BagsOld.ToString();
+            date = lot.Ro.RoDate.ToDateTime(TimeOnly.MinValue);
+            locked = lot.Ro.EntryStatus == "submitted";
+        }
+    }
+
+    private void OnFile(InputFileChangeEventArgs e) => file = e.File;
+
+    private async Task Save()
+    {
+        error = warn = null;
+        try
+        {
+            var body = new PaddyWrite(ro, DateOnly.FromDateTime(date), centre, truck, decimal.Parse(qty), int.Parse(bagsNew), int.Parse(bagsOld), null, null, null, null, null, null, null, null, printed, Guid.NewGuid());
+            var saved = await Api.SendJson<WriteResultDto>(HttpMethod.Put, $"api/lots/{LotId}/ro", body);
+            if (saved.Warnings.Count > 0) warn = Lang.H("नंबर का रूप असामान्य है, फिर भी दर्ज हो गया।", "The number looks unusual, and it was saved anyway.");
+            if (file is not null)
+                await Upload(file, "paddy_ro", saved.Id);
+            locked = saved.EntryStatus == "submitted";
+            Nav.NavigateTo($"/app/lots/{LotId}");
+        }
+        catch (QueueSavedException) { error = Lang.H("ऑफलाइन — विवरण कतार में है। फोटो बाद में जोड़ें।", "Offline — details queued. Add the photo when you are back online."); }
+        catch (Exception ex) { error = ex.Message; }
+    }
+
+    [Inject] public HttpClient Http { get; set; } = default!;
+
+    private async Task Upload(IBrowserFile picked, string ownerType, Guid ownerId)
+    {
+        using var stream = picked.OpenReadStream(10 * 1024 * 1024);
+        using var content = new MultipartFormDataContent();
+        content.Add(new StreamContent(stream), "file", picked.Name);
+        content.Add(new StringContent(ownerType), "ownerType");
+        content.Add(new StringContent(ownerId.ToString()), "ownerId");
+        content.Add(new StringContent("photo"), "docKind");
+        var req = new HttpRequestMessage(HttpMethod.Post, "api/documents") { Content = content };
+        req.SetBrowserRequestCredentials(BrowserRequestCredentials.Include);
+        var res = await Http.SendAsync(req);
+        if (!res.IsSuccessStatusCode) error = Lang.H("फोटो नहीं चढ़ी।", "The file did not upload.");
+    }
+}
