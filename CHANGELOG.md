@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.1.2 — 2026-11-15
+
+- The published site was serving `index.html` with the literal Blazor placeholder `blazor.webassembly#[.{fingerprint}].js`, so Android Chrome stayed on the boot screen. Publish now copies the fingerprinted shell into `wwwroot`, and the service worker loads that shell from the network first.
+- .NET 10 does not emit `_framework/blazor.boot.json`. Boot configuration is inside the fingerprinted `blazor.webassembly.*.js` / `dotnet.*.js` files. A 404 for `blazor.boot.json` is expected.
+
 ## 1.1.1 — 2026-11-14
 
 - Second boot on Neon no longer runs `ALTER ROLE cmr_app`. Neon’s `neondb_owner` is not a superuser and that statement returns SQLSTATE 42501, which stopped the process. If the role already exists, startup logs a warning and continues. Creating a missing role still works for a non-superuser owner.

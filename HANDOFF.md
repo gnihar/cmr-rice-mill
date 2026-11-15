@@ -1,4 +1,4 @@
-# Handoff — CMR register v1.1.1
+# Handoff — CMR register v1.1.2
 
 This file is for the next person (or coding agent) who continues the app. Read it with `README.md` and `CHANGELOG.md`. The product decisions below came from Nihar and override the two research briefs that started the work.
 
@@ -79,6 +79,7 @@ Health: `GET /api/health`. The app reads `PORT`.
 - Trust the client for `tenant_id` or role.
 - Block a document number only because the prefix looks short or long.
 - Copy real challan, CDO, CMRA, truck, or RST values from mill photos into seed data or tests.
+- Put `#[.{fingerprint}]` back into `wwwroot/index.html`. The host publish copies that file as-is, so phones request a script that does not exist and stay on the boot screen. The script tags must be `_framework/blazor.webassembly.js` and `_framework/dotnet.js`. .NET 10 does not emit `blazor.boot.json`.
 - Add an OTP flow, a paid host, a domain, or an SMS account until Nihar asks. DLT is still pending.
 
 ## Suggested next change

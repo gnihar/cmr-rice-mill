@@ -1,4 +1,4 @@
-# CMR register — v1.1.1
+# CMR register — v1.1.2
 
 A small web app for custom milling of rice (CMR) in Madhya Pradesh. The pilot mill is **Shri Krishna Rice & Poha Industries, Ujjain**. It keeps the paddy challan, the CMR deposit order, the acceptance note, and the kaanta (weighbridge) slip on one lot, with bag counts and an owner-only money book.
 

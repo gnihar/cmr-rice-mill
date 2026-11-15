@@ -87,6 +87,8 @@ public static class DatabaseBootstrap
               END;
             END $$;
             """, "create cmr_migrator", ct);
+        if (!await Scalar<bool>(conn, "SELECT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'cmr_migrator')", ct))
+            throw new InvalidOperationException("Role cmr_migrator does not exist, and this database user cannot create it.");
 
         var exists = await Scalar<bool>(conn, "SELECT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'cmr_app')", ct);
         if (!exists)

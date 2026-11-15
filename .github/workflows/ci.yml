@@ -51,4 +51,40 @@ jobs:
       - name: End-to-end tests
         env:
           CMR_E2E_CONFIG: Release
-        run: dotnet test tests/Cmr.E2E/Cmr.E2E.csproj -c Release --no-build
+        run: dotnet test tests/Cmr.E2E/Cmr.E2E.csproj -c Release --no-build --filter "FullyQualifiedName!~PublishedImageSmoke"
+      - name: Production image smoke
+        run: |
+          set -euo pipefail
+          docker build -t cmr:smoke .
+          docker rm -f cmr-smoke >/dev/null 2>&1 || true
+          docker run -d --name cmr-smoke -p 8080:8080 \
+            --add-host=host.docker.internal:host-gateway \
+            -e PORT=8080 \
+            -e ASPNETCORE_URLS=http://+:8080 \
+            -e ASPNETCORE_ENVIRONMENT=Production \
+            -e SEED_DEMO=true \
+            -e DATABASE_URL="postgresql://postgres:postgres@host.docker.internal:5432/postgres?sslmode=disable" \
+            -e CMR_APP_PASSWORD=cmr_app_dev \
+            -e "JWT_KEY=smoke-test-jwt-key-0123456789abcdef" \
+            cmr:smoke
+          for i in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:8080/api/health >/dev/null; then
+              break
+            fi
+            if ! docker ps --filter name=cmr-smoke --filter status=running -q | grep -q .; then
+              docker logs cmr-smoke
+              exit 1
+            fi
+            sleep 2
+          done
+          curl -fsS http://127.0.0.1:8080/api/health
+          html=$(curl -fsS http://127.0.0.1:8080/)
+          printf '%s' "$html" | grep -q 'blazor.webassembly.'
+          if printf '%s' "$html" | grep -F -q '#[.{fingerprint}]'; then
+            echo "published index.html still has the fingerprint placeholder"
+            printf '%s\n' "$html"
+            exit 1
+          fi
+          CMR_PUBLISHED_URL=http://127.0.0.1:8080 dotnet test tests/Cmr.E2E/Cmr.E2E.csproj -c Release --no-build --filter PublishedImageSmoke
+          docker logs cmr-smoke | tail -40
+          docker rm -f cmr-smoke
