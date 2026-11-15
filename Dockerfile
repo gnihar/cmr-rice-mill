@@ -6,6 +6,9 @@ RUN dotnet publish src/Cmr.Api/Cmr.Api.csproj -c Release -o /app /p:UseAppHost=f
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
 WORKDIR /app
 COPY --from=build /app .
+# The process runs as the non-root app user. The default storage path is under /app,
+# which the copy leaves owned by root, so seed and uploads fail unless this exists.
+RUN mkdir -p /app/data/files && chown -R app:app /app/data
 ENV ASPNETCORE_ENVIRONMENT=Production \
     DOTNET_RUNNING_IN_CONTAINER=true
 USER app

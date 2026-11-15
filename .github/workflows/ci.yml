@@ -63,6 +63,7 @@ jobs:
             -e ASPNETCORE_URLS=http://+:8080 \
             -e ASPNETCORE_ENVIRONMENT=Production \
             -e SEED_DEMO=true \
+            -e STORAGE_ROOT=/tmp/cmr-files \
             -e DATABASE_URL="postgresql://postgres:postgres@host.docker.internal:5432/postgres?sslmode=disable" \
             -e CMR_APP_PASSWORD=cmr_app_dev \
             -e "JWT_KEY=smoke-test-jwt-key-0123456789abcdef" \
